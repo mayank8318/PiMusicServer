@@ -12,16 +12,32 @@ from selenium.webdriver.chrome.options import Options
 # GPIO
 from gpiozero import LED, Button
 from time import sleep
+# AUDIO DETECTION
+import RPi.GPIO as GPIO
+import time
 
 public_ip = '10.3.141.1'
 port = "16242"
 groove_url = "http://" + public_ip + ":" + port + "/"
 play_btn = 'nowplaying-toggle'
 button_pin = 3
+sound_module_pin = 15
 serverThread = None
+
+def setup_audio_detection(pin, driver):
+	GPIO.setmode(GPIO.BCM)
+	GPIO.setup(pin, GPIO.IN)
+	GPIO.add_event_detect(pin, GPIO.BOTH, bouncetime=3000)  # let us know when the pin goes HIGH or LOW
+	GPIO.add_event_callback(pin, getClapFn(driver))  # assign function to GPIO PIN, Run function on change
 
 def toggle_play(driver):
 	driver.find_element_by_id(play_btn).click()
+
+def getClapFn(driver):
+	def on_clap_detected(pin):
+		toggle_play(driver)
+		print("Clap!")
+	return on_clap_detected
 
 def getButtonFn(driver):
 	def pressed(button):
@@ -41,7 +57,7 @@ def checkPort():
 	return True
 
 def main(arglist):
-	global public_ip, port, groove_url, play_btn, button_pin, serverThread
+	global public_ip, port, groove_url, play_btn, button_pin, serverThread, sound_module_pin
 
 	if 'runserver' in arglist:
 		serverThread = Thread(target = startServer)
@@ -55,10 +71,11 @@ def main(arglist):
 			print("Port Occupied!")
 			exit(1)
 	
-	if 'pin' in arglist:
-		idx = arglist.index('pin')
+	if 'pins' in arglist:
+		idx = arglist.index('pins')
 		try:
 			button_pin = int(arglist [idx + 1])
+			sound_module_pin = int(arglist [idx + 2])
 		except:
 			print("Invalid pin no.")
 
@@ -70,6 +87,7 @@ def main(arglist):
 	
 	button = Button(button_pin)
 	button.when_pressed = getButtonFn(driver)
+	setup_audio_detection(sound_module_pin, driver)
 
 if __name__ == '__main__':
 	main(sys.argv)
